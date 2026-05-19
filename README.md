@@ -4,12 +4,12 @@ Production-grade microservices inventory and order management platform built to 
 
 ## Submission Links
 
-- GitHub repository: `https://github.com/school11220/microservices-inventory-management-system`
-- Temporary public demo: `https://msgstr-divx-kansas-celebrities.trycloudflare.com`
-- Demo video release: `https://github.com/school11220/microservices-inventory-management-system/releases/tag/demo-video-v1`
+- GitHub repository: `https://github.com/shivam2931120/microservice_inventory`
+- Production Vercel deployment: `https://microservice-inventory.vercel.app`
+- Demo video release: publish from the current repository if required.
 - Report PDF: [`docs/Microservices_Inventory_Management_System_Report.pdf`](docs/Microservices_Inventory_Management_System_Report.pdf)
 
-The public demo URL is a Cloudflare quick tunnel backed by the local Docker Compose deployment. It is useful for a temporary submission review, but a stable production URL still requires the permanent deployment inputs listed in [`docs/DEPLOYMENT_RUNBOOK.md`](docs/DEPLOYMENT_RUNBOOK.md).
+The Vercel deployment serves the React frontend and a serverless API adapter backed by the Supabase PostgreSQL schemas. The Docker Compose and Kubernetes paths remain available for the full multi-service runtime.
 
 ## Stack
 
@@ -107,7 +107,7 @@ Latest local verification:
 - `npm run lint`: passed.
 - `docker compose config --quiet`: passed.
 - Docker smoke test: passed, including product creation, order creation, payment simulation, stock-reservation saga, and order confirmation.
-- Public tunnel smoke test: passed against `https://msgstr-divx-kansas-celebrities.trycloudflare.com/api`.
+- Vercel smoke test: passed against `https://microservice-inventory.vercel.app/api`.
 - Clean health load test: 1000 requests, 0 failures, 8496.18 requests/minute, p95 524.06 ms.
 
 Health and metrics endpoints:

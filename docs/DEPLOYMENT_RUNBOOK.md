@@ -1,19 +1,18 @@
 # Microservices Inventory Management System Deployment Runbook
 
-This runbook covers the production deployment inputs needed to turn the local Docker/Kubernetes-ready project into the public HTTPS demo required by `project.pdf`.
+This runbook covers the deployed Vercel demo and the remaining inputs needed to run the full Docker/Kubernetes-ready microservices stack in production.
 
 ## Current Deployment Status
 
-The project is deployed locally with Docker Compose and verified at:
+The project is deployed publicly on Vercel and remains runnable locally with Docker Compose:
 
+- Production Vercel URL: `https://microservice-inventory.vercel.app`
+- GitHub repository: `https://github.com/shivam2931120/microservice_inventory`
 - Frontend: `http://localhost:5173`
 - API Gateway: `http://localhost:3000`
 - Health: `http://localhost:3000/health`
-- Temporary public demo: `https://msgstr-divx-kansas-celebrities.trycloudflare.com`
-- GitHub repository: `https://github.com/school11220/microservices-inventory-management-system`
-- Demo video release: `https://github.com/school11220/microservices-inventory-management-system/releases/tag/demo-video-v1`
 
-The public demo URL is a Cloudflare quick tunnel pointed at the local Docker Compose deployment. It is suitable for a temporary submission/demo check, but it is not a permanent production deployment and will stop when the tunnel process or this machine stops.
+The Vercel deployment serves the React frontend and a serverless API adapter backed by the Supabase PostgreSQL schemas. The Docker Compose and Kubernetes assets remain the path for running the complete service topology.
 
 Local verification already passed:
 
@@ -21,9 +20,10 @@ Local verification already passed:
 - Lint: `npm run lint`
 - Compose validation: `docker compose config --quiet`
 - End-to-end smoke test: product creation, order creation, payment simulation, stock reservation saga, order confirmation
+- Live Vercel smoke test: login, product creation, stock adjustment, order creation, reporting, and cleanup against `https://microservice-inventory.vercel.app/api`
 - Load test: 1000 requests with 0 failures and more than 1000 requests/minute
 
-## Recommended Public Deployment Path
+## Recommended Full Microservices Deployment Path
 
 Use Kubernetes, because `project.pdf` explicitly calls for Kubernetes deployments, ingress, HPA, CI/CD, and production operations.
 

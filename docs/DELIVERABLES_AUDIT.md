@@ -20,10 +20,10 @@ Source of truth: `project.pdf`.
 | PDF deliverable                    | Status                | Notes                                                                                                                                                                                                                            |
 | ---------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Project Documentation / Report PDF | Complete              | `docs/Microservices_Inventory_Management_System_Report.pdf` is generated from the editable HTML source at `docs/Microservices_Inventory_Management_System_Report.html`.                                                          |
-| Live Public Demo URL               | Temporary demo live   | `https://msgstr-divx-kansas-celebrities.trycloudflare.com` is running through a Cloudflare quick tunnel backed by the verified Docker Compose stack. Permanent hosting still needs the inputs in `docs/DEPLOYMENT_RUNBOOK.md`.     |
-| GitHub Repository                  | Complete              | `https://github.com/school11220/microservices-inventory-management-system`                                                                                                                                                       |
+| Live Public Demo URL               | Complete              | `https://microservice-inventory.vercel.app` serves the React frontend and Vercel API adapter backed by the Supabase PostgreSQL schemas.                                                                                          |
+| GitHub Repository                  | Complete              | `https://github.com/shivam2931120/microservice_inventory`                                                                                                                                                                        |
 | README.md per project              | Complete              | Root `README.md` is aligned to the `Microservices Inventory Management System` title and includes run, verify, deployment, credentials, and submission notes.                                                                     |
-| Demo Video                         | Complete              | Release target: `https://github.com/school11220/microservices-inventory-management-system/releases/tag/demo-video-v1`                                                                                                           |
+| Demo Video                         | Pending if required   | Publish a new release from the current repository if a hosted walkthrough video is required.                                                                                                                                      |
 
 ## Current Verification
 
@@ -31,10 +31,10 @@ Source of truth: `project.pdf`.
 - `npm run lint`: passed.
 - `docker compose config --quiet`: passed.
 - `BASE_URL=http://localhost:3000 ./scripts/smoke-test.sh`: passed against Docker Compose.
-- `BASE_URL=https://msgstr-divx-kansas-celebrities.trycloudflare.com/api ./scripts/smoke-test.sh`: passed against the public tunnel.
+- Live Vercel smoke test against `https://microservice-inventory.vercel.app/api`: passed for login, product creation, stock adjustment, order creation, reporting, and cleanup.
 - `LOAD_TEST_URL=http://localhost:3000/health LOAD_TEST_REQUESTS=1000 npm run load:test`: passed with 1000 completed requests, 0 failures, 8496.18 requests/minute, and 524.06 ms p95 latency.
 
-## Remaining Inputs For Permanent Production Deployment
+## Remaining Inputs For Full Kubernetes Production Deployment
 
 - Container registry namespace or account.
 - Production hosting target, Kubernetes cluster, or managed container platform.

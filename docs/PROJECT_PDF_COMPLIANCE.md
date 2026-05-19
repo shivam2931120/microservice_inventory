@@ -16,9 +16,9 @@ This checklist maps the current repository to `project.pdf` for the project titl
 - Docker Compose local deployment and Kubernetes manifests with services, probes, resources, ingress, secrets/config, migrations, Redis, and HPAs.
 - GitHub Actions CI workflow for install, database setup, lint, tests, and build.
 - React admin UI and public demo catalog.
-- GitHub repository: `https://github.com/school11220/microservices-inventory-management-system`
-- Temporary public demo URL: `https://msgstr-divx-kansas-celebrities.trycloudflare.com`
-- Demo video release: `https://github.com/school11220/microservices-inventory-management-system/releases/tag/demo-video-v1`
+- GitHub repository: `https://github.com/shivam2931120/microservice_inventory`
+- Production Vercel URL: `https://microservice-inventory.vercel.app`
+- Demo video release: publish from the current repository if required.
 
 ## Verification Commands
 
@@ -31,9 +31,9 @@ BASE_URL=http://localhost:3000 ./scripts/smoke-test.sh
 LOAD_TEST_URL=http://localhost:3000/health LOAD_TEST_REQUESTS=1000 npm run load:test
 ```
 
-## External Inputs Still Needed For Permanent Hosting
+## External Inputs Still Needed For Full Kubernetes Hosting
 
-The code and temporary public demo are complete. A permanent production deployment still needs your account-owned infrastructure and secrets:
+The Vercel deployment is live. Running the complete Kubernetes topology still needs account-owned infrastructure and secrets:
 
 1. Container registry namespace and image tags.
 2. Production deployment target, for example DigitalOcean Kubernetes, EKS, GKE, Render, Railway, or Fly.io.
