@@ -81,7 +81,8 @@ function parseBody(req) {
 
 function parseUrl(req) {
   const url = new URL(req.url, 'https://inventory.local');
-  const parts = url.pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean);
+  const routedPath = url.searchParams.get('...path') || url.searchParams.get('path');
+  const parts = (routedPath || url.pathname.replace(/^\/api\/?/, '')).split('/').filter(Boolean);
   return { url, parts };
 }
 
