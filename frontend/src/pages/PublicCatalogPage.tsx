@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LogIn, PackageCheck, Search, ShoppingCart, SlidersHorizontal } from 'lucide-react';
+import { ProductImage } from '../components/ProductImage';
 import { productsApi } from '../services/api';
 import type { Product } from '../types/api';
+import { addProductToCart, canAddToCart, cartItemCount } from '../utils/cart';
 import { formatCurrency } from '../utils/currency';
 
 export function PublicCatalogPage() {
@@ -43,7 +45,7 @@ export function PublicCatalogPage() {
       });
   }, [category, products, search, sort]);
 
-  const count = useMemo(() => Object.values(cart).reduce((sum, value) => sum + value, 0), [cart]);
+  const count = useMemo(() => cartItemCount(cart), [cart]);
 
   return (
     <main className="min-h-screen bg-background text-on-surface">
@@ -144,50 +146,57 @@ export function PublicCatalogPage() {
           </div>
         ) : (
           <section className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filtered.map((product) => (
-              <article
-                key={product.id}
-                className="group flex overflow-hidden rounded-2xl border border-outline-variant bg-surface-container shadow-panel transition hover:-translate-y-0.5 hover:border-outline hover:shadow-elevated"
-              >
-                <div className="flex w-full flex-col">
-                  <div className="relative h-64 overflow-hidden bg-surface-container-high">
-                    <img
-                      src={
-                        product.imageUrl ||
-                        `https://placehold.co/720x520/1b211d/bccac0?text=${encodeURIComponent(product.name)}`
-                      }
-                      alt={product.name}
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
-                    <span className="absolute left-4 top-4 rounded-full border border-primary/20 bg-surface/85 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary backdrop-blur">
-                      {product.category}
-                    </span>
-                  </div>
-                  <div className="flex flex-1 flex-col p-5">
-                    <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                      <h2 className="min-w-0 text-xl font-semibold leading-tight text-on-surface">
-                        {product.name}
-                      </h2>
-                      <span className="shrink-0 text-xl font-semibold text-primary">
-                        {formatCurrency(product.price)}
+            {filtered.map((product) => {
+              const canAdd = canAddToCart(cart, product);
+              const inCart = cart[product.id] ?? 0;
+              const actionLabel =
+                product.stockLevel === 0
+                  ? 'Out of Stock'
+                  : inCart >= product.stockLevel
+                    ? 'Stock Limit Reached'
+                    : 'Add to Demo Cart';
+
+              return (
+                <article
+                  key={product.id}
+                  className="group flex overflow-hidden rounded-2xl border border-outline-variant bg-surface-container shadow-panel transition hover:-translate-y-0.5 hover:border-outline hover:shadow-elevated"
+                >
+                  <div className="flex w-full flex-col">
+                    <div className="relative h-64 overflow-hidden bg-surface-container-high">
+                      <ProductImage product={product} />
+                      <span className="absolute left-4 top-4 rounded-full border border-primary/20 bg-surface/85 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary backdrop-blur">
+                        {product.category}
                       </span>
                     </div>
-                    <p className="line-clamp-2 flex-1 text-sm leading-6 text-on-surface-variant">
-                      {product.description || 'No description available.'}
-                    </p>
-                    <button
-                      onClick={() =>
-                        setCart({ ...cart, [product.id]: (cart[product.id] ?? 0) + 1 })
-                      }
-                      className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-bold text-on-primary transition hover:bg-primaryHover"
-                    >
-                      <ShoppingCart size={18} />
-                      Add to Demo Cart
-                    </button>
+                    <div className="flex flex-1 flex-col p-5">
+                      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                        <h2 className="min-w-0 text-xl font-semibold leading-tight text-on-surface">
+                          {product.name}
+                        </h2>
+                        <span className="shrink-0 text-xl font-semibold text-primary">
+                          {formatCurrency(product.price)}
+                        </span>
+                      </div>
+                      <p className="line-clamp-2 flex-1 text-sm leading-6 text-on-surface-variant">
+                        {product.description || 'No description available.'}
+                      </p>
+                      <button
+                        disabled={!canAdd}
+                        onClick={() => setCart((current) => addProductToCart(current, product))}
+                        className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold transition ${
+                          canAdd
+                            ? 'bg-primary text-on-primary hover:bg-primaryHover'
+                            : 'cursor-not-allowed bg-surface-container-high text-on-surface-variant'
+                        }`}
+                      >
+                        <ShoppingCart size={18} />
+                        {actionLabel}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </section>
         )}
       </div>

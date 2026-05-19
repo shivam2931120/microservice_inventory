@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PackageSearch, Search, ShoppingCart, SlidersHorizontal } from 'lucide-react';
+import { ProductImage } from '../components/ProductImage';
 import { productsApi } from '../services/api';
 import type { Product } from '../types/api';
+import { addProductToCart, canAddToCart, cartItemCount } from '../utils/cart';
 import { formatCurrency } from '../utils/currency';
 
 export function CatalogPage() {
@@ -62,7 +64,7 @@ export function CatalogPage() {
       });
   }, [category, products, search, sort]);
 
-  const cartCount = useMemo(() => Object.values(cart).reduce((sum, value) => sum + value, 0), [cart]);
+  const cartCount = useMemo(() => cartItemCount(cart), [cart]);
 
   return (
     <section className="grid min-w-0 gap-6">
@@ -134,58 +136,67 @@ export function CatalogPage() {
         </div>
       ) : (
         <section className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((product) => (
-            <article
-              key={product.id}
-              className="group overflow-hidden rounded-2xl border border-outline-variant bg-surface-container shadow-panel transition hover:-translate-y-0.5 hover:border-outline hover:shadow-elevated"
-            >
-              <div className="relative h-60 overflow-hidden bg-surface-container-high">
-                <img
-                  src={
-                    product.imageUrl ||
-                    `https://placehold.co/720x520/1b211d/bccac0?text=${encodeURIComponent(product.name)}`
-                  }
-                  alt={product.name}
-                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                />
-                <span className="absolute left-4 top-4 rounded-full border border-primary/20 bg-surface/85 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary backdrop-blur">
-                  {product.category}
-                </span>
-              </div>
-              <div className="flex min-h-64 flex-col p-5">
-                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                  <h3 className="min-w-0 text-xl font-semibold leading-tight text-on-surface">{product.name}</h3>
-                  <span className="shrink-0 text-xl font-semibold text-primary">{formatCurrency(product.price)}</span>
-                </div>
-                <p className="line-clamp-3 flex-1 text-sm leading-6 text-on-surface-variant">
-                  {product.description || 'No description available.'}
-                </p>
-                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                  <span className="text-sm font-semibold text-on-surface-variant">
-                    {product.stockLevel} units available
+          {filtered.map((product) => {
+            const canAdd = canAddToCart(cart, product);
+            const inCart = cart[product.id] ?? 0;
+            const actionLabel =
+              product.stockLevel === 0
+                ? 'Out of Stock'
+                : inCart >= product.stockLevel
+                  ? 'Stock Limit Reached'
+                  : 'Add to Demo Cart';
+
+            return (
+              <article
+                key={product.id}
+                className="group overflow-hidden rounded-2xl border border-outline-variant bg-surface-container shadow-panel transition hover:-translate-y-0.5 hover:border-outline hover:shadow-elevated"
+              >
+                <div className="relative h-60 overflow-hidden bg-surface-container-high">
+                  <ProductImage product={product} />
+                  <span className="absolute left-4 top-4 rounded-full border border-primary/20 bg-surface/85 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary backdrop-blur">
+                    {product.category}
                   </span>
-                  <span
-                    className={`rounded-md px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
-                      product.stockLevel === 0
-                        ? 'bg-dangerSoft text-danger'
-                        : product.stockLevel < product.reorderThreshold
-                          ? 'bg-danger/10 text-danger'
-                          : 'bg-primary/10 text-primary'
+                </div>
+                <div className="flex min-h-64 flex-col p-5">
+                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    <h3 className="min-w-0 text-xl font-semibold leading-tight text-on-surface">{product.name}</h3>
+                    <span className="shrink-0 text-xl font-semibold text-primary">{formatCurrency(product.price)}</span>
+                  </div>
+                  <p className="line-clamp-3 flex-1 text-sm leading-6 text-on-surface-variant">
+                    {product.description || 'No description available.'}
+                  </p>
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-on-surface-variant">
+                      {product.stockLevel} units available
+                    </span>
+                    <span
+                      className={`rounded-md px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
+                        product.stockLevel === 0
+                          ? 'bg-dangerSoft text-danger'
+                          : product.stockLevel < product.reorderThreshold
+                            ? 'bg-danger/10 text-danger'
+                            : 'bg-primary/10 text-primary'
+                      }`}
+                    >
+                      {product.stockLevel === 0 ? 'Out' : product.stockLevel < product.reorderThreshold ? 'Low' : 'Ready'}
+                    </span>
+                  </div>
+                  <button
+                    disabled={!canAdd}
+                    onClick={() => setCart((current) => addProductToCart(current, product))}
+                    className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold transition ${
+                      canAdd
+                        ? 'bg-primary text-on-primary hover:bg-primaryHover'
+                        : 'cursor-not-allowed bg-surface-container-high text-on-surface-variant'
                     }`}
                   >
-                    {product.stockLevel === 0 ? 'Out' : product.stockLevel < product.reorderThreshold ? 'Low' : 'Ready'}
-                  </span>
+                    <ShoppingCart size={18} />
+                    {actionLabel}
+                  </button>
                 </div>
-                <button
-                  onClick={() => setCart({ ...cart, [product.id]: (cart[product.id] ?? 0) + 1 })}
-                  className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-bold text-on-primary transition hover:bg-primaryHover"
-                >
-                  <ShoppingCart size={18} />
-                  Add to Demo Cart
-                </button>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </section>
       )}
     </section>

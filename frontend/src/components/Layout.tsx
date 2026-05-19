@@ -66,6 +66,13 @@ export function Layout() {
     () => navItems.filter((item) => !item.roles || (user && item.roles.includes(user.role))),
     [user],
   );
+  const quickAction = useMemo(
+    () =>
+      user?.role === 'ADMIN'
+        ? { to: '/products?new=1', label: 'New Product', icon: PackagePlus }
+        : { to: '/orders?new=1', label: 'New Order', icon: ShoppingCart },
+    [user?.role],
+  );
 
   useEffect(() => {
     localStorage.setItem('inventory_sidebar_collapsed', String(collapsed));
@@ -484,6 +491,7 @@ export function Layout() {
 
   function renderSidebarContent(isMobile = false) {
     const compact = !isMobile && collapsed;
+    const QuickActionIcon = quickAction.icon;
 
     function navigateFromSidebar(to: string) {
       setActivePanel(null);
@@ -535,14 +543,14 @@ export function Layout() {
 
         <button
           type="button"
-          onClick={() => navigateFromSidebar('/products')}
-          title={compact ? 'New Entry' : undefined}
+          onClick={() => navigateFromSidebar(quickAction.to)}
+          title={compact ? quickAction.label : undefined}
           className={`mb-8 flex w-full items-center justify-center rounded-lg bg-primary px-4 py-3 text-sm font-bold text-on-primary shadow-sm transition hover:bg-primaryHover ${
             compact ? '' : 'gap-2'
           }`}
         >
-          <PackagePlus size={18} />
-          {!compact && 'New Entry'}
+          <QuickActionIcon size={18} />
+          {!compact && quickAction.label}
         </button>
 
         <nav

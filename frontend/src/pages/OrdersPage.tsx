@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Eye, Package, Plus, ShoppingCart, TrendingDown, TrendingUp, X } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { OrderForm } from '../components/OrderForm';
 import { StatusBadge } from '../components/StatusBadge';
 import { Toast } from '../components/Toast';
@@ -17,6 +18,8 @@ const statuses: Array<'' | OrderStatus> = [
   'SHIPPED',
 ];
 export function OrdersPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const createRequested = searchParams.get('new') === '1';
   const [orders, setOrders] = useState<Order[]>([]);
   const [snapshot, setSnapshot] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -28,6 +31,17 @@ export function OrdersPage() {
   const [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState<Order | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' }>();
+
+  const clearCreateIntent = useCallback(() => {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.delete('new');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
 
   const revenue = snapshot.reduce((sum, order) => sum + order.total, 0);
   const pending = snapshot.filter((order) => ['PENDING', 'PROCESSING'].includes(order.status)).length;
@@ -59,6 +73,10 @@ export function OrdersPage() {
     void load(nextPage);
   }, [status]);
 
+  useEffect(() => {
+    if (createRequested) setCreating(true);
+  }, [createRequested]);
+
   async function createOrder(payload: {
     customerName: string;
     customerEmail?: string;
@@ -68,6 +86,7 @@ export function OrdersPage() {
     try {
       await ordersApi.create(payload);
       setCreating(false);
+      clearCreateIntent();
       setToast({ message: 'Order submitted to inventory saga.', tone: 'success' });
       await load();
       window.setTimeout(() => void load(), 900);
@@ -209,7 +228,16 @@ export function OrdersPage() {
 
       <RecentActivity orders={snapshot.slice(0, 3)} />
 
-      {creating && <OrderForm products={products} onCancel={() => setCreating(false)} onSubmit={createOrder} />}
+      {creating && (
+        <OrderForm
+          products={products}
+          onCancel={() => {
+            setCreating(false);
+            clearCreateIntent();
+          }}
+          onSubmit={createOrder}
+        />
+      )}
       {selected && (
         <OrderDetailModal
           order={selected}

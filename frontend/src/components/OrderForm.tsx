@@ -156,7 +156,7 @@ export function OrderForm({ products, onCancel, onSubmit }: OrderFormProps) {
                 </div>
 
                 <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface shadow-sm">
-                  <div className="hidden grid-cols-[1fr_9rem_9rem_9rem_3rem] gap-3 bg-surface-container-low px-5 py-3 text-xs font-bold uppercase tracking-wide text-on-surface-variant lg:grid">
+                  <div className="hidden grid-cols-[minmax(0,1fr)_8rem_7rem_7rem_2.5rem] gap-3 bg-surface-container-low px-5 py-3 text-xs font-bold uppercase tracking-wide text-on-surface-variant lg:grid">
                     <span>Product</span>
                     <span>Quantity</span>
                     <span className="text-right">Unit Price</span>
@@ -169,9 +169,9 @@ export function OrderForm({ products, onCancel, onSubmit }: OrderFormProps) {
                       return (
                         <div
                           key={`${item.productId}-${index}`}
-                          className="grid gap-3 px-4 py-4 lg:grid-cols-[1fr_9rem_9rem_9rem_3rem] lg:items-center"
+                          className="grid gap-3 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_8rem_7rem_7rem_2.5rem] lg:items-center"
                         >
-                          <label className="grid gap-1.5 text-sm font-semibold text-on-surface-variant lg:gap-0">
+                          <label className="grid min-w-0 gap-1.5 text-sm font-semibold text-on-surface-variant lg:gap-0">
                             <span className="lg:sr-only">Product</span>
                             <select
                               required
@@ -179,7 +179,7 @@ export function OrderForm({ products, onCancel, onSubmit }: OrderFormProps) {
                               onChange={(event) =>
                                 updateItem(index, { productId: event.target.value })
                               }
-                              className="rounded-lg border border-outline-variant bg-surface-container px-3 py-2.5 text-on-surface outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                              className="w-full rounded-lg border border-outline-variant bg-surface-container px-3 py-2.5 text-on-surface outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
                             >
                               {products.map((candidate) => (
                                 <option key={candidate.id} value={candidate.id}>
@@ -188,7 +188,7 @@ export function OrderForm({ products, onCancel, onSubmit }: OrderFormProps) {
                               ))}
                             </select>
                           </label>
-                          <div className="flex w-32 overflow-hidden rounded-lg border border-outline-variant">
+                          <div className="flex w-32 overflow-hidden rounded-lg border border-outline-variant lg:w-full">
                             <button
                               type="button"
                               onClick={() => updateItem(index, { quantity: item.quantity - 1 })}

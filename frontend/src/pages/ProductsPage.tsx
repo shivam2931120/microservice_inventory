@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Boxes,
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { ProductForm } from '../components/ProductForm';
+import { ProductImage } from '../components/ProductImage';
 import { Toast } from '../components/Toast';
 import { extractApiError, productsApi } from '../services/api';
 import { useAppSelector } from '../store';
@@ -19,8 +20,9 @@ import { formatCurrency } from '../utils/currency';
 
 export function ProductsPage() {
   const canManage = useAppSelector((state) => state.auth.user?.role === 'ADMIN');
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const querySearch = searchParams.get('q') ?? '';
+  const createRequested = searchParams.get('new') === '1';
   const [products, setProducts] = useState<Product[]>([]);
   const [snapshot, setSnapshot] = useState<Product[]>([]);
   const [categoryFacets, setCategoryFacets] = useState<Array<{ category: string; count: number }>>(
@@ -35,6 +37,17 @@ export function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Product | null | undefined>();
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' }>();
+
+  const clearCreateIntent = useCallback(() => {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.delete('new');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
 
   const metricProducts = snapshot.length ? snapshot : products;
   const categories = useMemo(
@@ -84,6 +97,15 @@ export function ProductsPage() {
   }, [querySearch]);
 
   useEffect(() => {
+    if (!createRequested) return;
+    if (canManage) {
+      setEditing(null);
+      return;
+    }
+    clearCreateIntent();
+  }, [canManage, clearCreateIntent, createRequested]);
+
+  useEffect(() => {
     const handle = window.setTimeout(() => setSearch(searchText.trim()), 250);
     return () => window.clearTimeout(handle);
   }, [searchText]);
@@ -106,6 +128,7 @@ export function ProductsPage() {
       if (editing) await productsApi.update(editing.id, payload);
       else await productsApi.create(payload);
       setEditing(undefined);
+      clearCreateIntent();
       setToast({ message: editing ? 'Product updated.' : 'Product created.', tone: 'success' });
       await load();
     } catch (error) {
@@ -115,9 +138,15 @@ export function ProductsPage() {
 
   async function adjustStock(product: Product) {
     const value = window.prompt(`Adjust stock for ${product.name}. Use +10 or -5.`, '0');
-    if (!value || Number(value) === 0) return;
+    if (!value) return;
+    const delta = Number(value.trim());
+    if (!Number.isInteger(delta)) {
+      setToast({ message: 'Enter a whole-number stock adjustment.', tone: 'error' });
+      return;
+    }
+    if (delta === 0) return;
     try {
-      await productsApi.adjustStock(product.id, Number(value), product.version);
+      await productsApi.adjustStock(product.id, delta, product.version);
       setToast({ message: 'Stock updated atomically.', tone: 'success' });
       await load();
     } catch (error) {
@@ -274,14 +303,7 @@ export function ProductsPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-4">
                           <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-outline-variant bg-surface-container-high">
-                            <img
-                              src={
-                                product.imageUrl ||
-                                `https://placehold.co/96x96/1b211d/bccac0?text=${encodeURIComponent(product.name.slice(0, 2).toUpperCase())}`
-                              }
-                              alt={product.name}
-                              className="h-full w-full object-cover"
-                            />
+                            <ProductImage product={product} variant="thumb" />
                           </div>
                           <div className="min-w-0">
                             <p className="truncate font-semibold text-on-surface">{product.name}</p>
@@ -397,7 +419,14 @@ export function ProductsPage() {
       </div>
 
       {editing !== undefined && (
-        <ProductForm product={editing} onCancel={() => setEditing(undefined)} onSubmit={save} />
+        <ProductForm
+          product={editing}
+          onCancel={() => {
+            setEditing(undefined);
+            clearCreateIntent();
+          }}
+          onSubmit={save}
+        />
       )}
       <Toast message={toast?.message} tone={toast?.tone} onClose={() => setToast(undefined)} />
     </section>
