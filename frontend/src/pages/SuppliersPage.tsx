@@ -204,7 +204,7 @@ export function SuppliersPage() {
               Showing 1 to {suppliers.length} of {suppliers.length} entries
             </p>
           </div>
-          <div className="relative">
+          <div>
             <button
               type="button"
               onClick={() => setColumnsOpen((current) => !current)}
@@ -214,30 +214,31 @@ export function SuppliersPage() {
               <Package size={17} />
               Columns
             </button>
-            {columnsOpen && (
-              <div className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-56 rounded-xl border border-outline-variant bg-surface-container p-2 shadow-elevated">
-                {([
-                  ['category', 'Category'],
-                  ['contact', 'Primary Contact'],
-                  ['rating', 'Reliability Rating'],
-                ] as Array<[SupplierColumn, string]>).map(([column, label]) => (
-                  <label
-                    key={column}
-                    className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-high"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns[column]}
-                      onChange={() => toggleColumn(column)}
-                      className="rounded border-outline-variant bg-surface text-primary focus:ring-primary"
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            )}
           </div>
         </div>
+
+        {columnsOpen && (
+          <div className="flex flex-wrap gap-3 border-b border-outline-variant bg-surface-container-low px-4 py-3">
+            {([
+              ['category', 'Category'],
+              ['contact', 'Primary Contact'],
+              ['rating', 'Reliability Rating'],
+            ] as Array<[SupplierColumn, string]>).map(([column, label]) => (
+              <label
+                key={column}
+                className="flex cursor-pointer items-center gap-3 rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-high"
+              >
+                <input
+                  type="checkbox"
+                  checked={visibleColumns[column]}
+                  onChange={() => toggleColumn(column)}
+                  className="rounded border-outline-variant bg-surface text-primary focus:ring-primary"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        )}
 
         <div className="app-scrollbar overflow-x-auto">
           <table className="w-full min-w-[820px] text-left">
