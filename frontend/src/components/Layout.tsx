@@ -2,9 +2,7 @@ import {
   BarChart3,
   Bell,
   Boxes,
-  CheckCircle2,
   CircleHelp,
-  Clock3,
   LogOut,
   Menu,
   PackagePlus,
@@ -14,10 +12,8 @@ import {
   PanelLeftOpen,
   Search,
   Settings,
-  ShieldCheck,
   ShoppingCart,
   Truck,
-  UserCog,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -253,55 +249,63 @@ export function Layout() {
               <p className="text-sm text-on-surface-variant">
                 {notificationSnapshot.loading
                   ? 'Checking live inventory and order queues...'
-                  : 'Live workspace alerts for India operations.'}
+                  : notificationSnapshot.lowStock || notificationSnapshot.pendingOrders
+                    ? 'Live workspace alerts.'
+                    : 'No notifications right now.'}
               </p>
             )}
 
-            <button
-              type="button"
-              onClick={() => goToPanelTarget('/products')}
-              className="flex w-full items-start gap-3 rounded-xl border border-outline-variant bg-surface p-3 text-left transition hover:border-primary hover:bg-surface-container-high"
-            >
-              <span className="grid h-10 w-10 place-items-center rounded-lg bg-danger/10 text-danger">
-                <Clock3 size={18} />
-              </span>
-              <span>
-                <span className="block font-semibold text-on-surface">Low stock alerts</span>
-                <span className="text-sm text-on-surface-variant">
-                  {notificationSnapshot.lowStock} products need replenishment.
-                </span>
-              </span>
-            </button>
+            {!notificationSnapshot.loading &&
+              !notificationSnapshot.error &&
+              notificationSnapshot.lowStock === 0 &&
+              notificationSnapshot.pendingOrders === 0 && (
+                <div className="rounded-xl border border-dashed border-outline-variant bg-surface p-5 text-center">
+                  <Bell className="mx-auto text-on-surface-variant" size={24} />
+                  <p className="mt-2 text-sm font-semibold text-on-surface">Queue is clear</p>
+                  <p className="mt-1 text-xs text-on-surface-variant">
+                    Low-stock and pending-order alerts will appear here when they need attention.
+                  </p>
+                </div>
+              )}
 
-            <button
-              type="button"
-              onClick={() => goToPanelTarget('/orders')}
-              className="flex w-full items-start gap-3 rounded-xl border border-outline-variant bg-surface p-3 text-left transition hover:border-primary hover:bg-surface-container-high"
-            >
-              <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">
-                <ShoppingCart size={18} />
-              </span>
-              <span>
-                <span className="block font-semibold text-on-surface">Order queue</span>
-                <span className="text-sm text-on-surface-variant">
-                  {notificationSnapshot.pendingOrders} pending or processing orders.
+            {notificationSnapshot.lowStock > 0 && (
+              <button
+                type="button"
+                onClick={() => goToPanelTarget('/products')}
+                className="flex w-full items-start gap-3 rounded-xl border border-outline-variant bg-surface p-3 text-left transition hover:border-primary hover:bg-surface-container-high"
+              >
+                <span className="grid h-10 w-10 place-items-center rounded-lg bg-danger/10 text-danger">
+                  <Boxes size={18} />
                 </span>
-              </span>
-            </button>
-
-            <div className="flex items-start gap-3 rounded-xl border border-outline-variant bg-surface p-3">
-              <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">
-                <CheckCircle2 size={18} />
-              </span>
-              <span>
-                <span className="block font-semibold text-on-surface">Catalog synced</span>
-                <span className="text-sm text-on-surface-variant">
-                  {notificationSnapshot.activeProducts} India-ready SKUs are available.
+                <span>
+                  <span className="block font-semibold text-on-surface">Low stock alerts</span>
+                  <span className="text-sm text-on-surface-variant">
+                    {notificationSnapshot.lowStock} products need replenishment.
+                  </span>
                 </span>
-              </span>
-            </div>
+              </button>
+            )}
 
-            {user?.role === 'ADMIN' && (
+            {notificationSnapshot.pendingOrders > 0 && (
+              <button
+                type="button"
+                onClick={() => goToPanelTarget('/orders')}
+                className="flex w-full items-start gap-3 rounded-xl border border-outline-variant bg-surface p-3 text-left transition hover:border-primary hover:bg-surface-container-high"
+              >
+                <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">
+                  <ShoppingCart size={18} />
+                </span>
+                <span>
+                  <span className="block font-semibold text-on-surface">Order queue</span>
+                  <span className="text-sm text-on-surface-variant">
+                    {notificationSnapshot.pendingOrders} pending or processing orders.
+                  </span>
+                </span>
+              </button>
+            )}
+
+            {user?.role === 'ADMIN' &&
+              (notificationSnapshot.lowStock > 0 || notificationSnapshot.pendingOrders > 0) && (
               <button
                 type="button"
                 onClick={() => goToPanelTarget('/reports')}
@@ -315,59 +319,15 @@ export function Layout() {
 
         {activePanel === 'settings' && (
           <div className="grid gap-4 p-4">
-            <div className="rounded-xl border border-outline-variant bg-surface p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">
-                Signed in as
+            <div className="rounded-xl border border-dashed border-outline-variant bg-surface p-5 text-center">
+              <Settings className="mx-auto text-on-surface-variant" size={24} />
+              <p className="mt-2 text-sm font-semibold text-on-surface">
+                No in-app workspace settings
               </p>
-              <p className="mt-1 text-lg font-semibold text-on-surface">{user?.username}</p>
-              <p className="text-sm font-semibold text-primary">{user?.role}</p>
-            </div>
-
-            <div className="grid gap-2 rounded-xl border border-outline-variant bg-surface p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">
-                Localisation
+              <p className="mt-1 text-xs leading-5 text-on-surface-variant">
+                Runtime configuration is handled by deployment environment variables. Account
+                details, roles, and localisation are not shown in this menu.
               </p>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-on-surface-variant">Region</span>
-                <span className="font-semibold text-on-surface">India</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-on-surface-variant">Currency</span>
-                <span className="font-semibold text-on-surface">INR (₹)</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-on-surface-variant">Order context</span>
-                <span className="font-semibold text-on-surface">GST-ready buyers</span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setCollapsed((current) => !current)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-outline-variant bg-surface px-4 py-2.5 text-sm font-semibold text-on-surface transition hover:border-primary hover:text-primary"
-            >
-              {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-              {collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            </button>
-
-            <div className="grid gap-3 rounded-xl border border-outline-variant bg-surface p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">
-                Access Roles
-              </p>
-              <div className="flex gap-3">
-                <ShieldCheck className="mt-0.5 shrink-0 text-primary" size={18} />
-                <p className="text-sm text-on-surface-variant">
-                  <span className="font-semibold text-on-surface">ADMIN</span> manages products,
-                  stock, suppliers, orders, reports, and user setup.
-                </p>
-              </div>
-              <div className="flex gap-3">
-                <UserCog className="mt-0.5 shrink-0 text-primary" size={18} />
-                <p className="text-sm text-on-surface-variant">
-                  <span className="font-semibold text-on-surface">STAFF</span> handles orders and
-                  views inventory/catalog data without product-master or report admin rights.
-                </p>
-              </div>
             </div>
           </div>
         )}
@@ -511,10 +471,11 @@ export function Layout() {
           {!compact && (
             <>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xl font-bold leading-tight text-primary">
-                  Microservices Inventory
+                <p className="text-lg font-bold leading-tight text-primary">
+                  <span className="block">Microservices</span>
+                  <span className="block">Inventory</span>
                 </p>
-                <p className="mt-1 truncate text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant">
+                <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-on-surface-variant">
                   Management System
                 </p>
               </div>
@@ -652,7 +613,7 @@ export function Layout() {
                 <PackageCheck size={20} />
               </div>
               <div className="hidden min-w-0 sm:block">
-                <p className="truncate font-bold leading-none text-primary">
+                <p className="font-bold leading-none text-primary">
                   Microservices Inventory
                 </p>
                 <p className="text-xs text-on-surface-variant">Management System</p>
