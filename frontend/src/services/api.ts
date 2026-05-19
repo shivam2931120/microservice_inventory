@@ -15,7 +15,7 @@ export const AUTH_EXPIRED_EVENT = 'inventory-auth-expired';
 function resolveApiBaseUrl() {
   const runtimeUrl = window.__INVENTORY_CONFIG__?.apiUrl?.trim();
   const buildUrl = import.meta.env.VITE_API_URL?.trim();
-  return runtimeUrl || buildUrl || 'http://localhost:3000';
+  return runtimeUrl || buildUrl || (import.meta.env.PROD ? '/api' : 'http://localhost:3000');
 }
 
 const api = axios.create({
