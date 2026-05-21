@@ -23,7 +23,8 @@
     "load:test": "node scripts/load-test.mjs",
     "public:demo": "node scripts/public-demo-proxy.mjs",
     "record:demo": "node scripts/record-demo-video.mjs",
-    "verify": "npm run db:generate && npm run build && npm run test"
+    "test:vercel-api": "node --test api/vercel-adapter.test.js",
+    "verify": "npm run db:generate && npm run build && npm run test && npm run test:vercel-api"
   },
   "engines": {
     "node": ">=20.11.0",

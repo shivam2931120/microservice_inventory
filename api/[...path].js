@@ -12,14 +12,22 @@ const schemas = {
   reporting: 'reporting_service',
 };
 
+const MAX_JSON_BODY_BYTES = 1_000_000;
+const ORDER_STATUSES = new Set([
+  'PENDING',
+  'PROCESSING',
+  'CONFIRMED',
+  'FAILED',
+  'CANCELLED',
+  'SHIPPED',
+]);
+
 let pool;
 
 function getPool() {
   if (pool) return pool;
   const connectionString = cleanConnectionString(
-    process.env.AUTH_DIRECT_URL ||
-      process.env.AUTH_DATABASE_URL ||
-      process.env.DATABASE_URL,
+    process.env.AUTH_DIRECT_URL || process.env.AUTH_DATABASE_URL || process.env.DATABASE_URL,
   );
   if (!connectionString) {
     throw httpError(500, 'Database connection is not configured');
@@ -27,9 +35,7 @@ function getPool() {
 
   pool = new Pool({
     connectionString,
-    ssl: connectionString.includes('localhost')
-      ? false
-      : { rejectUnauthorized: false },
+    ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: false },
     max: 3,
     connectionTimeoutMillis: 15000,
   });
@@ -38,9 +44,13 @@ function getPool() {
 
 function cleanConnectionString(value) {
   if (!value) return value;
-  const url = new URL(value);
-  url.search = '';
-  return url.toString();
+  try {
+    const url = new URL(value);
+    url.search = '';
+    return url.toString();
+  } catch {
+    throw httpError(500, 'Database connection string is invalid');
+  }
 }
 
 function httpError(status, message) {
@@ -52,20 +62,34 @@ function httpError(status, message) {
 function send(res, status, payload) {
   res.statusCode = status;
   res.setHeader('content-type', 'application/json; charset=utf-8');
+  res.setHeader('cache-control', 'no-store');
   res.end(JSON.stringify(payload));
 }
 
 function sendEmpty(res, status = 204) {
   res.statusCode = status;
+  res.setHeader('cache-control', 'no-store');
   res.end();
 }
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on('data', (chunk) => chunks.push(chunk));
+    let size = 0;
+    let rejected = false;
+    req.on('data', (chunk) => {
+      if (rejected) return;
+      size += chunk.length;
+      if (size > MAX_JSON_BODY_BYTES) {
+        rejected = true;
+        reject(httpError(413, 'Request body is too large'));
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on('error', reject);
     req.on('end', () => {
+      if (rejected) return;
       if (!chunks.length) {
         resolve({});
         return;
@@ -87,9 +111,20 @@ function parseUrl(req) {
 }
 
 function pageParams(url) {
-  const page = Math.max(1, Number(url.searchParams.get('page') || 1));
-  const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') || 10)));
+  const page = positiveIntegerParam(url, 'page', 1);
+  const limit = positiveIntegerParam(url, 'limit', 10, 100);
   return { page, limit, offset: (page - 1) * limit };
+}
+
+function positiveIntegerParam(url, name, fallback, max) {
+  const raw = url.searchParams.get(name);
+  if (raw === null || raw === '') return fallback;
+  if (!/^\d+$/.test(raw)) throw httpError(400, `${name} must be a positive integer`);
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw httpError(400, `${name} must be a positive integer`);
+  }
+  return max ? Math.min(value, max) : value;
 }
 
 function iso(value) {
@@ -98,6 +133,81 @@ function iso(value) {
 
 function number(value) {
   return Number(value ?? 0);
+}
+
+function ensureObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw httpError(400, 'Request body must be a JSON object');
+  }
+  return value;
+}
+
+function textField(source, field, options = {}) {
+  const { required = false, nullable = true, maxLength, label = field, trim = true } = options;
+  if (source[field] === undefined) {
+    if (required) throw httpError(400, `${label} is required`);
+    return undefined;
+  }
+  if (source[field] === null) {
+    if (required || !nullable) throw httpError(400, `${label} is required`);
+    return null;
+  }
+  const value = trim ? String(source[field]).trim() : String(source[field]);
+  if (!value) {
+    if (required || !nullable) throw httpError(400, `${label} is required`);
+    return null;
+  }
+  if (maxLength && value.length > maxLength) {
+    throw httpError(400, `${label} must be at most ${maxLength} characters`);
+  }
+  return value;
+}
+
+function numberField(source, field, options = {}) {
+  const { required = false, integer = false, min, label = field } = options;
+  if (source[field] === undefined) {
+    if (required) throw httpError(400, `${label} is required`);
+    return undefined;
+  }
+  if (source[field] === null || source[field] === '') {
+    throw httpError(400, `${label} must be a valid number`);
+  }
+  const value = Number(source[field]);
+  if (!Number.isFinite(value)) throw httpError(400, `${label} must be a valid number`);
+  if (integer && !Number.isInteger(value)) {
+    throw httpError(400, `${label} must be an integer`);
+  }
+  if (min !== undefined && value < min) {
+    throw httpError(400, `${label} must be at least ${min}`);
+  }
+  return value;
+}
+
+function optionalUrlField(source, field, options = {}) {
+  const value = textField(source, field, options);
+  if (value === undefined || value === null) return value;
+  try {
+    const parsed = new URL(value);
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Invalid protocol');
+    return value;
+  } catch {
+    throw httpError(400, `${options.label || field} must be a valid URL`);
+  }
+}
+
+function parseDateParam(url, name, fallback) {
+  const raw = url.searchParams.get(name);
+  if (!raw) return fallback;
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) throw httpError(400, `${name} must be a valid date`);
+  return date;
+}
+
+function reportDateRange(url) {
+  const to = parseDateParam(url, 'to', new Date());
+  const from = parseDateParam(url, 'from', new Date(to.getTime() - 29 * 24 * 60 * 60 * 1000));
+  if (from > to) throw httpError(400, 'from must be before or equal to to');
+  return { from, to };
 }
 
 function productFromRow(row) {
@@ -146,23 +256,25 @@ function orderFromRows(order, items, history) {
   };
 }
 
+function jwtSecret() {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    throw httpError(500, 'JWT secret is not configured');
+  }
+  return 'local-development-jwt-secret-change-in-prod';
+}
+
 function signUser(user) {
-  const secret = process.env.JWT_SECRET || 'local-development-jwt-secret-change-in-prod';
-  return jwt.sign(
-    { sub: user.id, username: user.username, role: user.role },
-    secret,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '1h' },
-  );
+  return jwt.sign({ sub: user.id, username: user.username, role: user.role }, jwtSecret(), {
+    expiresIn: process.env.JWT_EXPIRES_IN || '1h',
+  });
 }
 
 function verifyAuth(req, roles) {
   const [type, token] = String(req.headers.authorization || '').split(' ');
   if (type !== 'Bearer' || !token) throw httpError(401, 'Missing bearer token');
   try {
-    const payload = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'local-development-jwt-secret-change-in-prod',
-    );
+    const payload = jwt.verify(token, jwtSecret());
     if (roles?.length && !roles.includes(payload.role)) {
       throw httpError(403, 'Insufficient role');
     }
@@ -193,8 +305,8 @@ function safeUser(user) {
 
 async function handleAuth(req, res, parts) {
   const client = getPool();
-  if (req.method === 'POST' && parts[1] === 'login') {
-    const body = await parseBody(req);
+  if (req.method === 'POST' && parts.length === 2 && parts[1] === 'login') {
+    const body = ensureObject(await parseBody(req));
     const user = await getUserByUsername(client, String(body.username || ''));
     if (!user || !(await bcrypt.compare(String(body.password || ''), user.passwordHash))) {
       throw httpError(401, 'Invalid username or password');
@@ -203,8 +315,8 @@ async function handleAuth(req, res, parts) {
     return true;
   }
 
-  if (req.method === 'POST' && parts[1] === 'register') {
-    const body = await parseBody(req);
+  if (req.method === 'POST' && parts.length === 2 && parts[1] === 'register') {
+    const body = ensureObject(await parseBody(req));
     const username = String(body.username || '').trim();
     const password = String(body.password || '');
     const role = body.role === 'ADMIN' ? 'ADMIN' : 'STAFF';
@@ -229,12 +341,12 @@ async function handleAuth(req, res, parts) {
     return true;
   }
 
-  if (req.method === 'GET' && parts[1] === 'me') {
+  if (req.method === 'GET' && parts.length === 2 && parts[1] === 'me') {
     send(res, 200, { user: verifyAuth(req) });
     return true;
   }
 
-  if (req.method === 'POST' && parts[1] === 'verify') {
+  if (req.method === 'POST' && parts.length === 2 && parts[1] === 'verify') {
     send(res, 200, { user: verifyAuth(req) });
     return true;
   }
@@ -305,28 +417,56 @@ async function getProduct(id) {
 }
 
 function validateProductPayload(body, partial = false) {
+  ensureObject(body);
   const payload = {};
-  for (const field of ['name', 'description', 'category', 'imageUrl']) {
-    if (body[field] !== undefined) payload[field] = body[field] ? String(body[field]).trim() : null;
-  }
-  for (const field of ['price', 'stockLevel', 'reorderThreshold']) {
-    if (body[field] !== undefined) payload[field] = Number(body[field]);
-  }
-  if (!partial) {
-    for (const field of ['name', 'category', 'price', 'stockLevel', 'reorderThreshold']) {
-      if (payload[field] === undefined || payload[field] === null || payload[field] === '') {
-        throw httpError(400, `${field} is required`);
-      }
-    }
-  }
-  if (payload.price !== undefined && payload.price < 0) throw httpError(400, 'price must be positive');
-  if (payload.stockLevel !== undefined && payload.stockLevel < 0) throw httpError(400, 'stockLevel cannot be negative');
-  if (payload.reorderThreshold !== undefined && payload.reorderThreshold < 0) throw httpError(400, 'reorderThreshold cannot be negative');
+
+  const name = textField(body, 'name', {
+    required: !partial,
+    nullable: false,
+    maxLength: 160,
+  });
+  if (name !== undefined) payload.name = name;
+
+  const description = textField(body, 'description', { maxLength: 2000 });
+  if (description !== undefined) payload.description = description;
+
+  const category = textField(body, 'category', {
+    required: !partial,
+    nullable: false,
+    maxLength: 100,
+  });
+  if (category !== undefined) payload.category = category;
+
+  const imageUrl = optionalUrlField(body, 'imageUrl', { maxLength: 2048 });
+  if (imageUrl !== undefined) payload.imageUrl = imageUrl;
+
+  const price = numberField(body, 'price', { required: !partial, min: 0 });
+  if (price !== undefined) payload.price = price;
+
+  const stockLevel = numberField(body, 'stockLevel', {
+    required: !partial,
+    integer: true,
+    min: 0,
+  });
+  if (stockLevel !== undefined) payload.stockLevel = stockLevel;
+
+  const reorderThreshold = numberField(body, 'reorderThreshold', {
+    required: !partial,
+    integer: true,
+    min: 0,
+  });
+  if (reorderThreshold !== undefined) payload.reorderThreshold = reorderThreshold;
+
   return payload;
 }
 
 async function handleProducts(req, res, parts, url) {
-  if (req.method === 'GET' && parts[0] === 'public' && parts[1] === 'products') {
+  if (
+    req.method === 'GET' &&
+    parts.length === 2 &&
+    parts[0] === 'public' &&
+    parts[1] === 'products'
+  ) {
     send(res, 200, await listProducts(url));
     return true;
   }
@@ -337,7 +477,7 @@ async function handleProducts(req, res, parts, url) {
     send(res, 200, await listProducts(url));
     return true;
   }
-  if (req.method === 'GET' && parts[1]) {
+  if (req.method === 'GET' && parts.length === 2) {
     verifyAuth(req);
     send(res, 200, await getProduct(parts[1]));
     return true;
@@ -351,12 +491,21 @@ async function handleProducts(req, res, parts, url) {
        ("id", "name", "description", "price", "category", "stockLevel", "reorderThreshold", "imageUrl", "version", "createdAt", "updatedAt")
        values ($1, $2, $3, $4, $5, $6, $7, $8, 1, now(), now())
        returning *`,
-      [id, body.name, body.description, body.price, body.category, body.stockLevel, body.reorderThreshold, body.imageUrl],
+      [
+        id,
+        body.name,
+        body.description,
+        body.price,
+        body.category,
+        body.stockLevel,
+        body.reorderThreshold,
+        body.imageUrl,
+      ],
     );
     send(res, 201, productFromRow(result.rows[0]));
     return true;
   }
-  if (req.method === 'PUT' && parts[1]) {
+  if (req.method === 'PUT' && parts.length === 2) {
     verifyAuth(req, ['ADMIN']);
     const body = validateProductPayload(await parseBody(req), true);
     const fields = [];
@@ -381,7 +530,7 @@ async function handleProducts(req, res, parts, url) {
     send(res, 200, productFromRow(result.rows[0]));
     return true;
   }
-  if (req.method === 'DELETE' && parts[1]) {
+  if (req.method === 'DELETE' && parts.length === 2) {
     verifyAuth(req, ['ADMIN']);
     const result = await getPool().query(
       `delete from "${schemas.inventory}"."Product" where "id" = $1`,
@@ -396,11 +545,18 @@ async function handleProducts(req, res, parts, url) {
 }
 
 async function handleInventory(req, res, parts) {
-  if (parts[0] !== 'inventory' || req.method !== 'PUT' || parts[2] !== 'stock') return false;
+  if (
+    parts[0] !== 'inventory' ||
+    req.method !== 'PUT' ||
+    parts.length !== 3 ||
+    parts[2] !== 'stock'
+  ) {
+    return false;
+  }
   verifyAuth(req, ['ADMIN']);
-  const body = await parseBody(req);
-  const delta = Number(body.delta);
-  if (!Number.isInteger(delta) || delta === 0) throw httpError(400, 'Stock delta cannot be zero');
+  const body = ensureObject(await parseBody(req));
+  const delta = numberField(body, 'delta', { required: true, integer: true });
+  if (delta === 0) throw httpError(400, 'Stock delta cannot be zero');
   const client = await getPool().connect();
   try {
     await client.query('begin');
@@ -410,7 +566,8 @@ async function handleInventory(req, res, parts) {
     );
     const product = current.rows[0];
     if (!product) throw httpError(404, 'Product not found');
-    if (body.expectedVersion !== undefined && Number(body.expectedVersion) !== product.version) {
+    const expectedVersion = numberField(body, 'expectedVersion', { integer: true, min: 1 });
+    if (expectedVersion !== undefined && expectedVersion !== product.version) {
       throw httpError(409, 'Product version has changed');
     }
     const nextStock = product.stockLevel + delta;
@@ -468,6 +625,54 @@ async function loadOrders(whereSql, params, limit, offset) {
   };
 }
 
+function validateOrderPayload(body) {
+  ensureObject(body);
+  const customerName = textField(body, 'customerName', {
+    required: true,
+    nullable: false,
+    maxLength: 160,
+  });
+  const customerEmail = textField(body, 'customerEmail', { maxLength: 320 });
+  if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+    throw httpError(400, 'customerEmail must be a valid email address');
+  }
+  const customerAddress = textField(body, 'customerAddress', { maxLength: 500 });
+  if (!Array.isArray(body.items) || !body.items.length) {
+    throw httpError(400, 'At least one order item is required');
+  }
+
+  const seen = new Set();
+  const items = body.items.map((item, index) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw httpError(400, `items[${index}] must be an object`);
+    }
+    const productId = textField(item, 'productId', {
+      required: true,
+      nullable: false,
+      maxLength: 100,
+      label: `items[${index}].productId`,
+    });
+    if (seen.has(productId)) {
+      throw httpError(400, 'Duplicate product IDs are not allowed in a single order');
+    }
+    seen.add(productId);
+    const quantity = numberField(item, 'quantity', {
+      required: true,
+      integer: true,
+      min: 1,
+      label: `items[${index}].quantity`,
+    });
+    return { productId, quantity };
+  });
+
+  return {
+    customerName,
+    customerEmail,
+    customerAddress,
+    items,
+  };
+}
+
 async function handleOrders(req, res, parts, url) {
   if (parts[0] !== 'orders') return false;
   verifyAuth(req, ['ADMIN', 'STAFF']);
@@ -475,7 +680,8 @@ async function handleOrders(req, res, parts, url) {
 
   if (req.method === 'GET' && parts.length === 1) {
     const { page, limit, offset } = pageParams(url);
-    const status = url.searchParams.get('status');
+    const status = url.searchParams.get('status')?.trim();
+    if (status && !ORDER_STATUSES.has(status)) throw httpError(400, 'Invalid order status');
     const params = [];
     const whereSql = status ? `where "status" = $1::"${schemas.order}"."OrderStatus"` : '';
     if (status) params.push(status);
@@ -490,7 +696,7 @@ async function handleOrders(req, res, parts, url) {
     return true;
   }
 
-  if (req.method === 'GET' && parts[1]) {
+  if (req.method === 'GET' && parts.length === 2) {
     const data = await loadOrders('where "id" = $1', [parts[1]], 1, 0);
     if (!data.orders[0]) throw httpError(404, 'Order not found');
     send(res, 200, data.orders[0]);
@@ -498,18 +704,8 @@ async function handleOrders(req, res, parts, url) {
   }
 
   if (req.method === 'POST' && parts.length === 1) {
-    const body = await parseBody(req);
-    const items = Array.isArray(body.items) ? body.items : [];
-    if (!String(body.customerName || '').trim()) throw httpError(400, 'customerName is required');
-    if (!items.length) throw httpError(400, 'At least one order item is required');
-    const seen = new Set();
-    for (const item of items) {
-      if (seen.has(item.productId)) throw httpError(400, 'Duplicate product IDs are not allowed in a single order');
-      seen.add(item.productId);
-      if (!Number.isInteger(Number(item.quantity)) || Number(item.quantity) < 1) {
-        throw httpError(400, 'Order item quantity must be at least 1');
-      }
-    }
+    const body = validateOrderPayload(await parseBody(req));
+    const items = body.items;
 
     const tx = await client.connect();
     try {
@@ -525,7 +721,8 @@ async function handleOrders(req, res, parts, url) {
         const product = products.get(item.productId);
         if (!product) throw httpError(400, `Product ${item.productId} was not found`);
         const quantity = Number(item.quantity);
-        if (product.stockLevel < quantity) throw httpError(400, `${product.name} does not have enough stock`);
+        if (product.stockLevel < quantity)
+          throw httpError(400, `${product.name} does not have enough stock`);
         const unitPrice = number(product.price);
         const lineTotal = quantity * unitPrice;
         total += lineTotal;
@@ -550,9 +747,9 @@ async function handleOrders(req, res, parts, url) {
          returning *`,
         [
           orderId,
-          String(body.customerName).trim(),
-          body.customerEmail || null,
-          body.customerAddress || null,
+          body.customerName,
+          body.customerEmail,
+          body.customerAddress,
           total,
           'CONFIRMED',
           'AUTHORIZED',
@@ -564,14 +761,27 @@ async function handleOrders(req, res, parts, url) {
           `insert into "${schemas.order}"."OrderItem"
            ("id", "orderId", "productId", "productName", "quantity", "unitPrice", "lineTotal")
            values ($1, $2, $3, $4, $5, $6, $7)`,
-          [randomUUID(), orderId, item.product.id, item.product.name, item.quantity, item.unitPrice, item.lineTotal],
+          [
+            randomUUID(),
+            orderId,
+            item.product.id,
+            item.product.name,
+            item.quantity,
+            item.unitPrice,
+            item.lineTotal,
+          ],
         );
       }
       await tx.query(
         `insert into "${schemas.order}"."OrderStatusHistory"
          ("id", "orderId", "status", "note", "createdAt")
          values ($1, $2, $3::"${schemas.order}"."OrderStatus", $4, now())`,
-        [randomUUID(), orderId, 'CONFIRMED', `Payment authorized (${paymentReference}) and stock reserved`],
+        [
+          randomUUID(),
+          orderId,
+          'CONFIRMED',
+          `Payment authorized (${paymentReference}) and stock reserved`,
+        ],
       );
       await tx.query('commit');
       const data = await loadOrders('where "id" = $1', [orderResult.rows[0].id], 1, 0);
@@ -585,10 +795,10 @@ async function handleOrders(req, res, parts, url) {
     return true;
   }
 
-  if (req.method === 'PUT' && parts[1] && parts[2] === 'status') {
-    const body = await parseBody(req);
+  if (req.method === 'PUT' && parts.length === 3 && parts[2] === 'status') {
+    const body = ensureObject(await parseBody(req));
     const status = String(body.status || '');
-    if (!['PENDING', 'PROCESSING', 'CONFIRMED', 'FAILED', 'CANCELLED', 'SHIPPED'].includes(status)) {
+    if (!ORDER_STATUSES.has(status)) {
       throw httpError(400, 'Invalid order status');
     }
     const result = await client.query(
@@ -610,12 +820,11 @@ async function handleOrders(req, res, parts, url) {
     return true;
   }
 
-  if (req.method === 'DELETE' && parts[1]) {
+  if (req.method === 'DELETE' && parts.length === 2) {
     verifyAuth(req, ['ADMIN']);
-    const result = await client.query(
-      `delete from "${schemas.order}"."Order" where "id" = $1`,
-      [parts[1]],
-    );
+    const result = await client.query(`delete from "${schemas.order}"."Order" where "id" = $1`, [
+      parts[1],
+    ]);
     if (result.rowCount === 0) throw httpError(404, 'Order not found');
     sendEmpty(res);
     return true;
@@ -629,11 +838,8 @@ async function handleReports(req, res, parts, url) {
   verifyAuth(req, ['ADMIN']);
   const client = getPool();
 
-  if (parts[1] === 'sales') {
-    const to = url.searchParams.get('to') ? new Date(url.searchParams.get('to')) : new Date();
-    const from = url.searchParams.get('from')
-      ? new Date(url.searchParams.get('from'))
-      : new Date(to.getTime() - 29 * 24 * 60 * 60 * 1000);
+  if (parts.length === 2 && parts[1] === 'sales') {
+    const { from, to } = reportDateRange(url);
     const result = await client.query(
       `select date_trunc('day', "createdAt") as date,
               sum("total")::numeric as "totalSales",
@@ -668,7 +874,7 @@ async function handleReports(req, res, parts, url) {
     return true;
   }
 
-  if (parts[1] === 'inventory') {
+  if (parts.length === 2 && parts[1] === 'inventory') {
     const result = await client.query(
       `select * from "${schemas.inventory}"."Product" order by "updatedAt" desc`,
     );
@@ -686,7 +892,7 @@ async function handleReports(req, res, parts, url) {
     return true;
   }
 
-  if (parts[1] === 'stock-alerts') {
+  if (parts.length === 2 && parts[1] === 'stock-alerts') {
     const result = await client.query(
       `select * from "${schemas.inventory}"."Product"
        where "stockLevel" < "reorderThreshold"
@@ -710,7 +916,7 @@ async function handleReports(req, res, parts, url) {
   return false;
 }
 
-module.exports = async function handler(req, res) {
+async function handler(req, res) {
   res.setHeader('access-control-allow-origin', '*');
   res.setHeader('access-control-allow-methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader('access-control-allow-headers', 'content-type,authorization');
@@ -731,6 +937,25 @@ module.exports = async function handler(req, res) {
     if (!handled) throw httpError(404, 'Endpoint not found');
   } catch (error) {
     const status = error.status || 500;
-    send(res, status, { message: error.message || 'Unexpected error' });
+    const message =
+      status >= 500 && process.env.NODE_ENV === 'production'
+        ? 'Unexpected error'
+        : error.message || 'Unexpected error';
+    send(res, status, { message });
   }
+}
+
+module.exports = handler;
+module.exports.__test = {
+  cleanConnectionString,
+  ensureObject,
+  httpError,
+  jwtSecret,
+  pageParams,
+  parseDateParam,
+  reportDateRange,
+  textField,
+  numberField,
+  validateOrderPayload,
+  validateProductPayload,
 };

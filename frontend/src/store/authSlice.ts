@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { authApi } from '../services/api';
+import { authApi, extractApiError, type LoginResponse } from '../services/api';
 import type { Role, User } from '../types/api';
 
 interface AuthState {
@@ -35,9 +35,42 @@ const initialState: AuthState = {
   status: storedSession.token ? 'checking' : 'idle',
 };
 
-export const login = createAsyncThunk('auth/login', async (payload: { username: string; password: string }) => authApi.login(payload.username, payload.password));
-export const register = createAsyncThunk('auth/register', async (payload: { username: string; password: string; role: Role }) => authApi.register(payload.username, payload.password, payload.role));
-export const validateSession = createAsyncThunk('auth/validateSession', async () => authApi.me());
+type AuthThunkConfig = { rejectValue: string };
+
+export const login = createAsyncThunk<
+  LoginResponse,
+  { username: string; password: string },
+  AuthThunkConfig
+>('auth/login', async (payload, { rejectWithValue }) => {
+  try {
+    return await authApi.login(payload.username, payload.password);
+  } catch (error) {
+    return rejectWithValue(extractApiError(error));
+  }
+});
+
+export const register = createAsyncThunk<
+  { user: User },
+  { username: string; password: string; role: Role },
+  AuthThunkConfig
+>('auth/register', async (payload, { rejectWithValue }) => {
+  try {
+    return await authApi.register(payload.username, payload.password, payload.role);
+  } catch (error) {
+    return rejectWithValue(extractApiError(error));
+  }
+});
+
+export const validateSession = createAsyncThunk<{ user: User }, void, AuthThunkConfig>(
+  'auth/validateSession',
+  async (_payload, { rejectWithValue }) => {
+    try {
+      return await authApi.me();
+    } catch (error) {
+      return rejectWithValue(extractApiError(error));
+    }
+  },
+);
 
 const authSlice = createSlice({
   name: 'auth',
@@ -67,7 +100,7 @@ const authSlice = createSlice({
       })
       .addCase(login.rejected, (state, action) => {
         state.status = 'error';
-        state.error = action.error.message;
+        state.error = action.payload ?? action.error.message;
       })
       .addCase(validateSession.pending, (state) => {
         state.status = 'checking';
@@ -83,7 +116,7 @@ const authSlice = createSlice({
         state.token = null;
         state.user = null;
         state.status = 'idle';
-        state.error = action.error.message;
+        state.error = action.payload ?? action.error.message;
         clearStoredSession();
       })
       .addCase(register.fulfilled, (_state, _action: PayloadAction<{ user: User }>) => undefined);

@@ -107,6 +107,7 @@ export const reportsApi = {
 };
 
 export function extractApiError(error: unknown): string {
+  if (typeof error === 'string') return error;
   if (axios.isAxiosError(error)) {
     const message = (error.response?.data as { message?: string })?.message;
     if (Array.isArray(message)) return message.join(', ');
