@@ -23,7 +23,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  font-family: "Inter", "Noto Sans Devanagari", ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Inter', 'Noto Sans Devanagari', ui-sans-serif, system-ui, sans-serif;
   background: #0f1511;
   overflow-x: hidden;
 }
@@ -38,7 +38,7 @@ kbd,
 samp,
 pre,
 .font-mono {
-  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 button:focus-visible,
@@ -67,6 +67,24 @@ option {
   color: #dee4de;
 }
 
+.form-input {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid #3d4a42;
+  background-color: #171d19;
+  padding: 0.625rem 0.875rem;
+  color: #dee4de;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.form-input:focus {
+  border-color: #68dba9;
+  box-shadow: 0 0 0 4px rgba(104, 219, 169, 0.1);
+}
+
 .aurora-bg {
   background:
     radial-gradient(circle at 12% 8%, rgba(104, 219, 169, 0.12) 0%, transparent 34%),
@@ -76,7 +94,7 @@ option {
 .auth-panel {
   background:
     linear-gradient(135deg, rgba(0, 49, 31, 0.9) 0%, rgba(15, 21, 17, 0.94) 100%),
-    url("https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1600&q=80");
+    url('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1600&q=80');
   background-size: cover;
   background-position: center;
 }

@@ -3,6 +3,7 @@ import {
   Bell,
   Boxes,
   CircleHelp,
+  ClipboardList,
   LogOut,
   Menu,
   PackagePlus,
@@ -18,14 +19,16 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { ordersApi, productsApi } from '../services/api';
+import { notificationsApi, ordersApi, productsApi } from '../services/api';
 import { logout } from '../store/authSlice';
 import { useAppDispatch, useAppSelector } from '../store';
+import type { WorkspaceNotification } from '../types/api';
 
 const navItems = [
   { to: '/products', label: 'Products', icon: Boxes },
   { to: '/orders', label: 'Orders', icon: ShoppingCart },
   { to: '/suppliers', label: 'Suppliers', icon: Truck },
+  { to: '/operations', label: 'Operations', icon: ClipboardList },
   { to: '/reports', label: 'Reports', icon: BarChart3, roles: ['ADMIN'] },
   { to: '/catalog', label: 'Catalog', icon: PackageSearch },
 ];
@@ -51,9 +54,8 @@ export function Layout() {
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [activePanel, setActivePanel] = useState<HeaderPanel | null>(null);
   const [notificationSnapshot, setNotificationSnapshot] = useState({
-    lowStock: 0,
-    pendingOrders: 0,
-    activeProducts: 0,
+    unread: 0,
+    notifications: [] as WorkspaceNotification[],
     loading: false,
     error: '',
   });
@@ -80,17 +82,13 @@ export function Layout() {
     let cancelled = false;
     setNotificationSnapshot((current) => ({ ...current, loading: true, error: '' }));
 
-    Promise.all([productsApi.list({ limit: 100 }), ordersApi.list({ limit: 100 })])
-      .then(([productData, orderData]) => {
+    notificationsApi
+      .list({ limit: 8 })
+      .then((data) => {
         if (cancelled) return;
         setNotificationSnapshot({
-          lowStock: productData.products.filter(
-            (product) => product.stockLevel < product.reorderThreshold,
-          ).length,
-          pendingOrders: orderData.orders.filter((order) =>
-            ['PENDING', 'PROCESSING'].includes(order.status),
-          ).length,
-          activeProducts: productData.products.length,
+          unread: data.notifications.filter((notification) => !notification.readAt).length,
+          notifications: data.notifications,
           loading: false,
           error: '',
         });
@@ -249,16 +247,15 @@ export function Layout() {
               <p className="text-sm text-on-surface-variant">
                 {notificationSnapshot.loading
                   ? 'Checking live inventory and order queues...'
-                  : notificationSnapshot.lowStock || notificationSnapshot.pendingOrders
-                    ? 'Live workspace alerts.'
+                  : notificationSnapshot.notifications.length
+                    ? `${notificationSnapshot.unread} unread operational alerts.`
                     : 'No notifications right now.'}
               </p>
             )}
 
             {!notificationSnapshot.loading &&
               !notificationSnapshot.error &&
-              notificationSnapshot.lowStock === 0 &&
-              notificationSnapshot.pendingOrders === 0 && (
+              notificationSnapshot.notifications.length === 0 && (
                 <div className="rounded-xl border border-dashed border-outline-variant bg-surface p-5 text-center">
                   <Bell className="mx-auto text-on-surface-variant" size={24} />
                   <p className="mt-2 text-sm font-semibold text-on-surface">Queue is clear</p>
@@ -268,50 +265,49 @@ export function Layout() {
                 </div>
               )}
 
-            {notificationSnapshot.lowStock > 0 && (
+            {notificationSnapshot.notifications.map((notification) => (
               <button
+                key={notification.id}
                 type="button"
-                onClick={() => goToPanelTarget('/products')}
+                onClick={() => {
+                  void notificationsApi.markRead(notification.id).catch(() => undefined);
+                  goToPanelTarget(
+                    notification.referenceType === 'Order'
+                      ? '/orders'
+                      : notification.referenceType === 'PurchaseOrder'
+                        ? '/operations'
+                        : '/products',
+                  );
+                }}
                 className="flex w-full items-start gap-3 rounded-xl border border-outline-variant bg-surface p-3 text-left transition hover:border-primary hover:bg-surface-container-high"
               >
-                <span className="grid h-10 w-10 place-items-center rounded-lg bg-danger/10 text-danger">
-                  <Boxes size={18} />
+                <span
+                  className={`grid h-10 w-10 place-items-center rounded-lg ${
+                    notification.severity === 'danger' || notification.severity === 'warning'
+                      ? 'bg-danger/10 text-danger'
+                      : 'bg-primary/10 text-primary'
+                  }`}
+                >
+                  {notification.referenceType === 'Order' ? (
+                    <ShoppingCart size={18} />
+                  ) : (
+                    <Boxes size={18} />
+                  )}
                 </span>
                 <span>
-                  <span className="block font-semibold text-on-surface">Low stock alerts</span>
-                  <span className="text-sm text-on-surface-variant">
-                    {notificationSnapshot.lowStock} products need replenishment.
-                  </span>
+                  <span className="block font-semibold text-on-surface">{notification.title}</span>
+                  <span className="text-sm text-on-surface-variant">{notification.message}</span>
                 </span>
               </button>
-            )}
+            ))}
 
-            {notificationSnapshot.pendingOrders > 0 && (
+            {notificationSnapshot.notifications.length > 0 && (
               <button
                 type="button"
-                onClick={() => goToPanelTarget('/orders')}
-                className="flex w-full items-start gap-3 rounded-xl border border-outline-variant bg-surface p-3 text-left transition hover:border-primary hover:bg-surface-container-high"
-              >
-                <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">
-                  <ShoppingCart size={18} />
-                </span>
-                <span>
-                  <span className="block font-semibold text-on-surface">Order queue</span>
-                  <span className="text-sm text-on-surface-variant">
-                    {notificationSnapshot.pendingOrders} pending or processing orders.
-                  </span>
-                </span>
-              </button>
-            )}
-
-            {user?.role === 'ADMIN' &&
-              (notificationSnapshot.lowStock > 0 || notificationSnapshot.pendingOrders > 0) && (
-              <button
-                type="button"
-                onClick={() => goToPanelTarget('/reports')}
+                onClick={() => goToPanelTarget('/operations')}
                 className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-on-primary transition hover:bg-primaryHover"
               >
-                Open Reports
+                Open Operations
               </button>
             )}
           </div>
@@ -613,9 +609,7 @@ export function Layout() {
                 <PackageCheck size={20} />
               </div>
               <div className="hidden min-w-0 sm:block">
-                <p className="font-bold leading-none text-primary">
-                  Microservices Inventory
-                </p>
+                <p className="font-bold leading-none text-primary">Microservices Inventory</p>
                 <p className="text-xs text-on-surface-variant">Management System</p>
               </div>
             </div>

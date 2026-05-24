@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Boxes,
+  Download,
   DollarSign,
+  Filter,
   PackagePlus,
   Pencil,
   Search,
@@ -31,6 +33,9 @@ export function ProductsPage() {
   const [searchText, setSearchText] = useState(querySearch);
   const [search, setSearch] = useState(querySearch);
   const [category, setCategory] = useState('');
+  const [stockStatus, setStockStatus] = useState('');
+  const [sortBy, setSortBy] = useState('updatedAt');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -71,6 +76,9 @@ export function ProductsPage() {
       const data = await productsApi.list({
         search: search || undefined,
         category: category || undefined,
+        stockStatus: stockStatus || undefined,
+        sortBy,
+        sortDir,
         page: nextPage,
         limit: 10,
       });
@@ -90,7 +98,7 @@ export function ProductsPage() {
     const nextPage = 1;
     setPage(nextPage);
     void load(nextPage);
-  }, [search, category]);
+  }, [search, category, stockStatus, sortBy, sortDir]);
 
   useEffect(() => {
     setSearchText(querySearch);
@@ -165,6 +173,28 @@ export function ProductsPage() {
     }
   }
 
+  async function exportCsv() {
+    try {
+      const data = await productsApi.exportCsv({
+        search: search || undefined,
+        category: category || undefined,
+        stockStatus: stockStatus || undefined,
+        sortBy,
+        sortDir,
+      });
+      const blob = new Blob([data.csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = data.filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setToast({ message: `Exported ${data.count} products.`, tone: 'success' });
+    } catch (error) {
+      setToast({ message: extractApiError(error), tone: 'error' });
+    }
+  }
+
   async function goToPage(nextPage: number) {
     const safePage = Math.min(Math.max(1, nextPage), totalPages);
     setPage(safePage);
@@ -191,6 +221,13 @@ export function ProductsPage() {
             Add Product
           </button>
         )}
+        <button
+          onClick={() => void exportCsv()}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-outline-variant px-5 py-3 text-sm font-bold text-on-surface-variant transition hover:border-primary hover:text-primary sm:w-auto"
+        >
+          <Download size={18} />
+          Export
+        </button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -245,7 +282,39 @@ export function ProductsPage() {
               ))}
             </select>
           </label>
+          <label className="md:w-52">
+            <span className="sr-only">Filter by stock status</span>
+            <select
+              value={stockStatus}
+              onChange={(event) => setStockStatus(event.target.value)}
+              className="w-full rounded-lg border border-outline-variant bg-surface px-4 py-2.5 text-on-surface outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+            >
+              <option value="">All Stock</option>
+              <option value="in">In Stock</option>
+              <option value="low">Low Stock</option>
+              <option value="out">Out of Stock</option>
+            </select>
+          </label>
+          <label className="md:w-52">
+            <span className="sr-only">Sort products</span>
+            <select
+              value={`${sortBy}:${sortDir}`}
+              onChange={(event) => {
+                const [field, direction] = event.target.value.split(':');
+                setSortBy(field);
+                setSortDir(direction === 'asc' ? 'asc' : 'desc');
+              }}
+              className="w-full rounded-lg border border-outline-variant bg-surface px-4 py-2.5 text-on-surface outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+            >
+              <option value="updatedAt:desc">Recently Updated</option>
+              <option value="name:asc">Name A-Z</option>
+              <option value="stockLevel:asc">Lowest Stock</option>
+              <option value="stockLevel:desc">Highest Stock</option>
+              <option value="price:desc">Highest Price</option>
+            </select>
+          </label>
           <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-on-surface-variant md:ml-auto">
+            <Filter className="mr-1 inline" size={14} />
             Displaying {products.length} of {total} products
           </span>
         </div>

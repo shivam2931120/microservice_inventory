@@ -31,6 +31,21 @@ The Vercel deployment serves the React frontend and a serverless API adapter bac
 - `event-bus-service`: HTTP event ingress with PostgreSQL durable event log, retry delivery, audit log, and optional Kafka topic publishing
 - `frontend`: internal admin UI and public demo catalog
 
+## Operational Features
+
+The Vercel runtime includes a self-initializing operational layer for the live Supabase-backed deployment:
+
+- Stock movement ledger for opening stock, manual adjustments, order reservations, product imports, and purchase receipts.
+- Purchase orders with supplier details, line items, receive/cancel actions, and automatic stock updates.
+- Real workspace notifications for low stock, order activity, imports, product deletes, and purchasing events.
+- Bulk product CSV import/export from the Operations and Products screens.
+- Advanced product search, stock-status filters, and server-side sorting.
+- SKU, barcode, and QR-style code generation for product identification.
+- Multi-warehouse inventory summaries with a default primary warehouse.
+- Admin audit logs for product, stock, order, purchasing, warehouse, import, and user actions.
+- Admin user management for creating users, changing roles, and disabling accounts.
+- Smart reports for stock valuation, fast movers, reorder suggestions, supplier performance, dead stock, and warehouse utilization.
+
 ## Run With Docker
 
 ```bash

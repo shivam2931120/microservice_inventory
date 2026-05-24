@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { Toast } from '../components/Toast';
 import { extractApiError, reportsApi } from '../services/api';
-import type { InventoryReport, SalesReport, StockAlertReport } from '../types/api';
+import type { AdvancedReport, InventoryReport, SalesReport, StockAlertReport } from '../types/api';
 import { formatCurrency } from '../utils/currency';
 
 type ReportRange = '7' | '30' | '90' | '365';
@@ -26,6 +26,7 @@ export function ReportsPage() {
   const [sales, setSales] = useState<SalesReport>();
   const [inventory, setInventory] = useState<InventoryReport>();
   const [alerts, setAlerts] = useState<StockAlertReport>();
+  const [advanced, setAdvanced] = useState<AdvancedReport>();
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; tone: 'error' | 'success' }>();
 
@@ -34,14 +35,16 @@ export function ReportsPage() {
   async function load() {
     setLoading(true);
     try {
-      const [salesData, inventoryData, alertData] = await Promise.all([
+      const [salesData, inventoryData, alertData, advancedData] = await Promise.all([
         reportsApi.sales({ from: dateRange.from.toISOString(), to: dateRange.to.toISOString() }),
         reportsApi.inventory(),
         reportsApi.stockAlerts(),
+        reportsApi.advanced({ from: dateRange.from.toISOString(), to: dateRange.to.toISOString() }),
       ]);
       setSales(salesData);
       setInventory(inventoryData);
       setAlerts(alertData);
+      setAdvanced(advancedData);
     } catch (error) {
       setToast({ message: extractApiError(error), tone: 'error' });
     } finally {
@@ -55,7 +58,9 @@ export function ReportsPage() {
 
   const distribution = useMemo(() => {
     const products = inventory?.products ?? [];
-    const lowStock = products.filter((product) => product.lowStock && product.stockLevel > 0).length;
+    const lowStock = products.filter(
+      (product) => product.lowStock && product.stockLevel > 0,
+    ).length;
     const outOfStock = products.filter((product) => product.stockLevel === 0).length;
     const inStock = Math.max(0, products.length - lowStock - outOfStock);
     return { inStock, lowStock, outOfStock, total: products.length };
@@ -196,6 +201,53 @@ export function ReportsPage() {
 
           <section className="grid gap-4">
             <div className="flex flex-wrap items-center gap-3">
+              <Boxes className="text-primary" size={24} />
+              <h3 className="text-xl font-semibold text-on-surface sm:text-2xl">
+                Smart Inventory Intelligence
+              </h3>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-3">
+              <KpiCard
+                icon={DollarSign}
+                label="Stock Valuation"
+                value={formatCurrency(advanced?.stockValuation.value ?? 0)}
+                badge="Inventory"
+              />
+              <KpiCard
+                icon={ShoppingBasket}
+                label="Fastest Mover"
+                value={advanced?.fastMoving[0]?.name ?? 'No sales'}
+                badge={`${advanced?.fastMoving[0]?.units ?? 0} units`}
+              />
+              <KpiCard
+                icon={AlertTriangle}
+                label="Reorder Suggestions"
+                value={String(advanced?.reorderSuggestions.length ?? 0)}
+                badge="Action"
+              />
+            </div>
+            <div className="grid gap-4 xl:grid-cols-2">
+              <InsightList
+                title="Recommended Reorders"
+                rows={(advanced?.reorderSuggestions ?? []).map((item) => ({
+                  title: item.name,
+                  detail: `${item.stockLevel}/${item.reorderThreshold} units · reorder ${item.suggestedQuantity}`,
+                }))}
+                empty="No reorder suggestions."
+              />
+              <InsightList
+                title="Supplier Performance"
+                rows={(advanced?.supplierPerformance ?? []).map((item) => ({
+                  title: item.supplierName,
+                  detail: `${item.received}/${item.purchaseOrders} received · ${item.fulfilmentRate}% fulfilment`,
+                }))}
+                empty="No purchase order supplier history yet."
+              />
+            </div>
+          </section>
+
+          <section className="grid gap-4">
+            <div className="flex flex-wrap items-center gap-3">
               <AlertTriangle className="text-danger" size={24} />
               <h3 className="text-xl font-semibold text-on-surface sm:text-2xl">
                 Critical Low Stock Alerts
@@ -266,7 +318,10 @@ export function ReportsPage() {
                 <p className="text-sm text-on-surface-variant">No inventory records available.</p>
               ) : (
                 (inventory?.products ?? []).map((product) => (
-                  <div key={product.productId} className="rounded-xl border border-outline-variant bg-surface p-4">
+                  <div
+                    key={product.productId}
+                    className="rounded-xl border border-outline-variant bg-surface p-4"
+                  >
                     <div className="flex justify-between gap-3">
                       <p className="font-semibold text-on-surface">{product.name}</p>
                       <span className="text-sm font-semibold text-on-surface-variant">
@@ -439,6 +494,37 @@ function LegendRow({ color, label, value }: { color: string; label: string; valu
         {label}
       </span>
       <span className="font-semibold text-on-surface">{value}</span>
+    </div>
+  );
+}
+
+function InsightList({
+  title,
+  rows,
+  empty,
+}: {
+  title: string;
+  rows: Array<{ title: string; detail: string }>;
+  empty: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-outline-variant bg-surface-container p-5 shadow-panel">
+      <h4 className="text-lg font-semibold text-on-surface">{title}</h4>
+      <div className="mt-4 grid gap-3">
+        {rows.length === 0 ? (
+          <p className="text-sm text-on-surface-variant">{empty}</p>
+        ) : (
+          rows.map((row) => (
+            <div
+              key={`${row.title}-${row.detail}`}
+              className="rounded-xl border border-outline-variant bg-surface p-4"
+            >
+              <p className="font-semibold text-on-surface">{row.title}</p>
+              <p className="mt-1 text-sm text-on-surface-variant">{row.detail}</p>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

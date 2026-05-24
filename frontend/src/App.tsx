@@ -5,6 +5,7 @@ import { ProtectedRoute, RoleRoute } from './components/ProtectedRoute';
 import { CatalogPage } from './pages/CatalogPage';
 import { LoginPage } from './pages/LoginPage';
 import { OrdersPage } from './pages/OrdersPage';
+import { OperationsPage } from './pages/OperationsPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { PublicCatalogPage } from './pages/PublicCatalogPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/suppliers" element={<SuppliersPage />} />
+          <Route path="/operations" element={<OperationsPage />} />
           <Route path="/catalog" element={<CatalogPage />} />
           <Route
             path="/reports"

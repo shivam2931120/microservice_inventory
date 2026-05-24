@@ -156,3 +156,48 @@ test('reportDateRange validates report date filters', () => {
     'from must be before',
   );
 });
+
+test('parseCsv handles quoted product import rows', () => {
+  assert.deepEqual(
+    __test.parseCsv(
+      'name,category,price,stockLevel,reorderThreshold,description\n"Steel, Bolt",Raw,12.50,10,4,"M8, zinc"',
+    ),
+    [
+      {
+        name: 'Steel, Bolt',
+        category: 'Raw',
+        price: '12.50',
+        stockLevel: '10',
+        reorderThreshold: '4',
+        description: 'M8, zinc',
+      },
+    ],
+  );
+});
+
+test('validatePurchaseOrderPayload normalizes purchase order input', () => {
+  assert.deepEqual(
+    __test.validatePurchaseOrderPayload({
+      supplierName: '  Bengaluru Hub ',
+      supplierEmail: ' desk@example.com ',
+      items: [{ productId: ' product-1 ', quantity: '5', unitCost: '11.25' }],
+    }),
+    {
+      supplierName: 'Bengaluru Hub',
+      supplierEmail: 'desk@example.com',
+      expectedAt: null,
+      items: [{ productId: 'product-1', quantity: 5, unitCost: 11.25 }],
+    },
+  );
+
+  assertHttpError(
+    () =>
+      __test.validatePurchaseOrderPayload({
+        supplierName: 'Hub',
+        supplierEmail: 'bad-email',
+        items: [{ productId: 'product-1', quantity: 1 }],
+      }),
+    400,
+    'supplierEmail',
+  );
+});
